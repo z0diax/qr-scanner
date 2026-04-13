@@ -27,6 +27,8 @@ from database import DatabaseManager
 from scanner import QRScannerThread
 from sync import ExportResult, SyncError, SyncResult, export_attendance_snapshot, has_internet, sync_users
 
+import winsound
+
 
 class SyncWorker(QObject):
     finished = Signal(object)
@@ -990,12 +992,16 @@ class MainWindow(QMainWindow):
         if user is None:
             self.user_info_label.setText("Not Registered")
             self._set_status_message("The scanned QR code could not be matched to any registered ID in the local database.")
+            winsound.Beep(400, 500)  # Failure beep
+            self._show_styled_warning("QR Not Registered", "Scanned code not found in local database.\n\nSync users from Google Sheets first?", "#AA0000")
             self._set_sidebar_index(self.camera_tab_index)
             return
 
         scanned_at = self.database.record_attendance(user["id"])
         self.user_info_label.setText(self._format_user_info(user, scanned_at))
         self._set_status_message("Attendance recorded successfully in the offline database.")
+        winsound.Beep(1000, 300)  # Success beep
+        self._show_styled_info("Attendance Recorded!", f"Success! Marked {user.get('name', 'User')} present at {scanned_at}.", "#00AA00")
         self.refresh_user_table()
         self._set_sidebar_index(self.camera_tab_index)
 
