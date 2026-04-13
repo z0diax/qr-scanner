@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
-from PySide6.QtGui import QCloseEvent, QDesktopServices, QImage, QPixmap, QResizeEvent
+from PySide6.QtGui import QCloseEvent, QColor, QDesktopServices, QImage, QPixmap, QResizeEvent
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -862,8 +862,7 @@ class MainWindow(QMainWindow):
 
         csv_url = self.csv_url_input.text().strip()
         if not csv_url:
-            QMessageBox.warning(
-                self,
+            self._show_styled_warning(
                 "Missing CSV URL",
                 "Enter a public Google Sheets link or CSV export URL before syncing.",
             )
@@ -898,8 +897,7 @@ class MainWindow(QMainWindow):
 
         web_app_url = self.export_url_input.text().strip()
         if not web_app_url:
-            QMessageBox.warning(
-                self,
+            self._show_styled_warning(
                 "Missing Export URL",
                 "Enter a Google Apps Script Web App URL before exporting attendance.",
             )
@@ -929,17 +927,14 @@ class MainWindow(QMainWindow):
         self.export_thread.start()
 
     def delete_local_records(self) -> None:
-        confirmation = QMessageBox.question(
-            self,
+        confirmed = self._show_styled_question(
             "Delete Local Records",
             (
                 "Delete all locally synced users, saved attendance logs, and manual attendance overrides?\n\n"
                 "Saved Google Sheets URLs will be kept so you can sync again later."
             ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
         )
-        if confirmation != QMessageBox.Yes:
+        if not confirmed:
             return
 
         self.database.clear_local_records()
@@ -949,8 +944,7 @@ class MainWindow(QMainWindow):
         self._refresh_status_label()
         self.refresh_user_table()
         self._set_sidebar_index(self.users_tab_index)
-        QMessageBox.information(
-            self,
+        self._show_styled_info(
             "Local Records Deleted",
             "The local synced roster and attendance data were removed successfully.",
         )
@@ -1041,8 +1035,7 @@ class MainWindow(QMainWindow):
         self._set_status_message(f"Sync completed successfully at {result.synced_at}.")
         self.refresh_user_table()
         self._set_sidebar_index(self.status_tab_index)
-        QMessageBox.information(
-            self,
+        self._show_styled_info(
             "Sync Complete",
             f"Downloaded {result.records_synced} user records from Google Sheets.",
         )
@@ -1054,7 +1047,7 @@ class MainWindow(QMainWindow):
         self._refresh_status_label()
         self._set_status_message(message)
         self._set_sidebar_index(self.status_tab_index)
-        QMessageBox.warning(self, "Sync Failed", message)
+        self._show_styled_warning("Sync Failed", message)
 
     @Slot(object)
     def _on_export_finished(self, result: ExportResult) -> None:
@@ -1064,8 +1057,7 @@ class MainWindow(QMainWindow):
             f"Attendance export completed at {result.exported_at} for {result.attendance_date}."
         )
         self._set_sidebar_index(self.status_tab_index)
-        QMessageBox.information(
-            self,
+        self._show_styled_info(
             "Export Complete",
             f"Exported {result.records_exported} attendance rows to Google Sheets.",
         )
@@ -1077,7 +1069,7 @@ class MainWindow(QMainWindow):
         self._refresh_status_label()
         self._set_status_message(message)
         self._set_sidebar_index(self.status_tab_index)
-        QMessageBox.warning(self, "Export Failed", message)
+        self._show_styled_warning("Export Failed", message)
 
     def _refresh_status_label(
         self,
@@ -1105,6 +1097,56 @@ class MainWindow(QMainWindow):
         self.status_message_label.setText(message)
         short_message = message[:42] + ("..." if len(message) > 42 else "")
         self.source_state_value.setText(short_message or "Idle")
+
+    def _show_styled_info(self, title: str, message: str, text_color: str = "#00FF00") -> None:
+        """Show a styled info message box with custom text color.
+        
+        Args:
+            title: Dialog title
+            message: Dialog message
+            text_color: Text color (hex or color name). Default: green (#00FF00)
+        """
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setStyleSheet(f"QMessageBox {{ color: {text_color}; }} QMessageBox QLabel {{ color: {text_color}; }}")
+        msg_box.exec()
+
+    def _show_styled_warning(self, title: str, message: str, text_color: str = "#FFFF00") -> None:
+        """Show a styled warning message box with custom text color.
+        
+        Args:
+            title: Dialog title
+            message: Dialog message
+            text_color: Text color (hex or color name). Default: yellow (#FFFF00)
+        """
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Warning)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setStyleSheet(f"QMessageBox {{ color: {text_color}; }} QMessageBox QLabel {{ color: {text_color}; }}")
+        msg_box.exec()
+
+    def _show_styled_question(self, title: str, message: str, text_color: str = "#FFFFFF") -> bool:
+        """Show a styled question message box with custom text color.
+        
+        Args:
+            title: Dialog title
+            message: Dialog message
+            text_color: Text color (hex or color name). Default: white (#FFFFFF)
+            
+        Returns:
+            True if user clicked Yes, False if user clicked No
+        """
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Question)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg_box.setDefaultButton(QMessageBox.No)
+        msg_box.setStyleSheet(f"QMessageBox {{ color: {text_color}; }} QMessageBox QLabel {{ color: {text_color}; }}")
+        return msg_box.exec() == QMessageBox.Yes
 
     def _set_sidebar_index(self, index: int) -> None:
         self.tabs.setCurrentIndex(index)

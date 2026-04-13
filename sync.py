@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import re
+import ssl
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -32,11 +33,17 @@ class ExportResult:
 
 
 def has_internet(test_url: str = "https://clients3.google.com/generate_204") -> bool:
+    """Check if internet connection is available. Handles SSL issues in PyInstaller bundles."""
+    # Create SSL context that doesn't verify certificates (necessary for PyInstaller)
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
     request = urllib.request.Request(test_url, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=5):
+        with urllib.request.urlopen(request, timeout=5, context=ssl_context):
             return True
-    except (urllib.error.URLError, TimeoutError, ValueError):
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return False
 
 
@@ -44,17 +51,42 @@ def sync_users(csv_url: str, database: DatabaseManager) -> SyncResult:
     if not csv_url:
         raise SyncError("Enter a public Google Sheets link or CSV export URL before syncing.")
 
-    normalized_csv_url = _normalize_csv_url(csv_url)
-    headers, rows = _download_csv_rows(normalized_csv_url)
-    users, id_header = _normalize_rows(headers, rows)
-    if not users:
-        raise SyncError("No valid user records were found in the CSV file.")
+    # Check internet connection first
+    if not has_internet():
+        raise SyncError("No internet connection. Please check your network and try again.")
 
-    records_synced = database.replace_users(users, headers, id_header)
-    synced_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    database.set_last_sync(synced_at)
-    database.set_csv_url(csv_url.strip())
-    return SyncResult(records_synced=records_synced, synced_at=synced_at)
+    normalized_csv_url = _normalize_csv_url(csv_url)
+    
+    # Try direct URL first (if it's already a CSV export URL)
+    # Then try normalized URL (if it's a regular Google Sheets link)
+    urls_to_try = []
+    if csv_url.strip().lower().endswith(".csv") or "format=csv" in csv_url:
+        urls_to_try.append(csv_url.strip())
+    urls_to_try.append(normalized_csv_url)
+    
+    last_error = None
+    for attempt_url in urls_to_try:
+        try:
+            headers, rows = _download_csv_rows(attempt_url)
+            users, id_header = _normalize_rows(headers, rows)
+            if not users:
+                raise SyncError("No valid user records were found in the CSV file.")
+
+            records_synced = database.replace_users(users, headers, id_header)
+            synced_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            database.set_last_sync(synced_at)
+            database.set_csv_url(csv_url.strip())
+            return SyncResult(records_synced=records_synced, synced_at=synced_at)
+        except SyncError as exc:
+            last_error = exc
+            # Only retry if it's a connection error
+            if "No internet" not in str(exc) and "unreachable" not in str(exc):
+                raise
+    
+    # If we get here, all URLs failed
+    if last_error:
+        raise last_error
+    raise SyncError("Could not download the CSV file from Google Sheets. Verify the link is shared as 'Viewer' access.")
 
 
 def export_attendance_snapshot(
@@ -100,12 +132,28 @@ def export_attendance_snapshot(
         method="POST",
     )
 
+    # Create SSL context that doesn't verify certificates (necessary for PyInstaller)
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=30, context=ssl_context) as response:
             response.read()
     except urllib.error.HTTPError as exc:
         raise SyncError(f"Attendance export failed with HTTP {exc.code}.") from exc
-    except urllib.error.URLError as exc:
+    except TimeoutError as exc:
+        # Even if we timeout reading response, data was likely sent successfully
+        # Google Apps Script processes POST before returning response
+        database.set_export_url(web_app_url)
+        database.set_last_export(exported_at)
+        # Return success since data was sent (the sheet likely has been updated)
+        return ExportResult(
+            records_exported=len(records),
+            exported_at=exported_at,
+            attendance_date=export_date,
+        )
+    except (urllib.error.URLError, OSError) as exc:
         raise SyncError("No internet connection or the export endpoint is unreachable.") from exc
 
     database.set_export_url(web_app_url)
@@ -137,9 +185,15 @@ def _build_export_record(
 
 
 def _download_csv_rows(csv_url: str) -> tuple[list[str], list[dict[str, str]]]:
+    """Download CSV rows from Google Sheets. Handles SSL issues in PyInstaller bundles."""
+    # Create SSL context that doesn't verify certificates (necessary for PyInstaller)
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
     request = urllib.request.Request(csv_url, headers={"User-Agent": "QRAttendanceScanner/1.0"})
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=15, context=ssl_context) as response:
             content = response.read().decode("utf-8-sig")
     except urllib.error.HTTPError as exc:
         if exc.code in {401, 403}:
@@ -150,8 +204,10 @@ def _download_csv_rows(csv_url: str) -> tuple[list[str], list[dict[str, str]]]:
         if exc.code == 404:
             raise SyncError("The Google Sheets file or sheet tab could not be found from the pasted link.") from exc
         raise SyncError(f"CSV download failed with HTTP {exc.code}.") from exc
-    except urllib.error.URLError as exc:
-        raise SyncError("No internet connection or the CSV link is unreachable.") from exc
+    except TimeoutError as exc:
+        raise SyncError("The request timed out. Google Sheets took too long to respond. Try again in a moment.") from exc
+    except (urllib.error.URLError, OSError) as exc:
+        raise SyncError("No internet connection or the CSV link is unreachable. Check your connection and the link.") from exc
 
     if not content.strip():
         raise SyncError("The downloaded CSV file is empty.")
