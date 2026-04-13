@@ -10,10 +10,20 @@ block_cipher = None
 pyzbar_path = Path(sys.base_prefix) / 'Lib' / 'site-packages' / 'pyzbar'
 binaries = []
 
+# Explicitly include required pyzbar DLLs
+required_dlls = ['libiconv.dll', 'libzbar-64.dll']
+
 if pyzbar_path.exists():
-    # Include pyzbar DLLs
+    for dll_name in required_dlls:
+        dll_path = pyzbar_path / dll_name
+        if dll_path.exists():
+            binaries.append((str(dll_path), 'pyzbar'))
+    
+    # Also include any other DLLs found
     for dll in pyzbar_path.glob('*.dll'):
-        binaries.append((str(dll), 'pyzbar'))
+        dll_tuple = (str(dll), 'pyzbar')
+        if dll_tuple not in binaries:
+            binaries.append(dll_tuple)
 
 a = Analysis(
     ['main.py'],
@@ -53,4 +63,15 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='QR Attendance Scanner',
 )

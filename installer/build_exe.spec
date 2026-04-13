@@ -6,21 +6,18 @@ from pathlib import Path
 
 block_cipher = None
 
-# Find pyzbar DLLs
-pyzbar_path = Path(sys.base_prefix) / 'Lib' / 'site-packages' / 'pyzbar'
-binaries = []
-
-if pyzbar_path.exists():
-    # Include pyzbar DLLs
-    for dll in pyzbar_path.glob('*.dll'):
-        binaries.append((str(dll), 'pyzbar'))
+# Explicit pyzbar DLLs (fixes libiconv.dll bundling)
+binaries = [
+    (r'C:\Users\User\AppData\Local\Programs\Python\Python312\Lib\site-packages\pyzbar\libiconv.dll', 'pyzbar'),
+    (r'C:\Users\User\AppData\Local\Programs\Python\Python312\Lib\site-packages\pyzbar\libzbar-64.dll', 'pyzbar'),
+]
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=binaries,
     datas=[],
-    hiddenimports=['PySide6', 'pyzbar', 'pyzbar.wrapper'],
+    hiddenimports=['PySide6', 'pyzbar', 'pyzbar.wrapper', 'pyzbar.zbar_library', 'ctypes.util'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
