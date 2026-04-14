@@ -127,7 +127,7 @@ function onFormSubmit(e) {
       var valueStr = String(value).trim();
 
       plainBodyLines.push(headerStr + ": " + valueStr);
-      htmlBodyLines.push("<li><strong>" + escapeHtml_(headerStr) + ":</strong> " + escapeHtml_(valueStr) + "</li>");
+      htmlBodyLines.push('<li style="padding: 10px 0; color: #555; border-bottom: 1px solid #eee;"><strong style="color: #667eea; display: block; margin-bottom: 5px;">' + escapeHtml_(headerStr) + ':</strong> ' + escapeHtml_(valueStr) + '</li>');
     }
 
     htmlBodyLines.push("</ul>");
@@ -135,16 +135,36 @@ function onFormSubmit(e) {
     var subject = "Your QR Code Registration";
 
     var plainBody =
-      "Hello,\n\n" +
+      "Good Day!,\n\n" +
       "Your Participant ID: " + participantId + "\n\n" +
       plainBodyLines.join("\n") + "\n\n" +
       "Your QR code is attached and included in this email.";
 
     var htmlBody =
-      "<p>Hello,</p>" +
-      "<p><strong>Your Participant ID: " + escapeHtml_(participantId) + "</strong></p>" +
+      '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px;">' +
+      '  <div style="background: white; border-radius: 8px; padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+      '    <h2 style="color: #333; margin-top: 0; text-align: center;">Registration Confirmation</h2>' +
+      '    <hr style="border: none; border-top: 2px solid #667eea; margin: 30px 0;">' +
+      '    <p style="color: #555; font-size: 16px;">Good Day!,</p>' +
+      '    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 25px 0;">' +
+      '      <p style="margin: 0; font-size: 14px; opacity: 0.9;">Your Participant ID</p>' +
+      '      <p style="margin: 10px 0 0 0; font-size: 32px; font-weight: bold; letter-spacing: 2px;">' + escapeHtml_(participantId) + '</p>' +
+      '    </div>' +
+      '    <h3 style="color: #333; margin-top: 30px; margin-bottom: 15px; font-size: 16px;">Registration Details</h3>' +
+      '    <div style="background: #f8f9fa; padding: 20px; border-left: 4px solid #667eea; border-radius: 4px;">' +
+      '      <ul style="list-style: none; padding: 0; margin: 0;">' +
       htmlBodyLines.join("") +
-      '<p><img src="cid:qrcode" style="max-width: 300px;"></p>';
+      '      </ul>' +
+      '    </div>' +
+      '    <div style="text-align: center; margin: 30px 0;">' +
+      '      <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Your QR Code</p>' +
+      '      <img src="cid:qrcode" style="max-width: 250px; height: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 10px; background: white;">' +
+      '    </div>' +
+      '    <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">' +
+      '      This QR code is your unique identifier. Please keep it safe and secure.' +
+      '    </p>' +
+      '  </div>' +
+      '</div>';
 
     GmailApp.sendEmail(email, subject, plainBody, {
       htmlBody: htmlBody,

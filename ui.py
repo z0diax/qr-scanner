@@ -107,7 +107,8 @@ class MainWindow(QMainWindow):
         self.camera_tab_index = 0
         self.users_tab_index = 1
         self.status_tab_index = 2
-        self.sync_tab_index = 3
+        self.history_tab_index = 3
+        self.sync_tab_index = 4
 
         self._build_ui()
         self._apply_styles()
@@ -136,6 +137,7 @@ class MainWindow(QMainWindow):
         self.tabs.addWidget(self._build_camera_tab())
         self.tabs.addWidget(self._build_users_tab())
         self.tabs.addWidget(self._build_status_tab())
+        self.tabs.addWidget(self._build_history_tab())
         self.tabs.addWidget(self._build_sync_tab())
         content_layout.addWidget(self.tabs, 1)
 
@@ -148,6 +150,7 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self.stop_scan)
         self.sync_button.clicked.connect(self.sync_data)
         self.export_button.clicked.connect(self.export_attendance)
+        self.manual_entry_button.clicked.connect(self._handle_manual_entry)
         self.delete_local_records_button.clicked.connect(self.delete_local_records)
         self.open_csv_url_button.clicked.connect(self.open_csv_url)
         self.test_csv_url_button.clicked.connect(self.sync_data)
@@ -155,6 +158,7 @@ class MainWindow(QMainWindow):
         self.test_export_url_button.clicked.connect(self.export_attendance)
         self.search_input.textChanged.connect(self.refresh_user_table)
         self.user_table.itemChanged.connect(self._handle_user_table_item_changed)
+        self.user_table.itemSelectionChanged.connect(self._update_manual_entry_button)
 
     def _build_camera_toolbar(self) -> QFrame:
         hero = QFrame()
@@ -248,12 +252,14 @@ class MainWindow(QMainWindow):
         self.camera_nav_button = self._create_nav_button("Camera", self.camera_tab_index)
         self.users_nav_button = self._create_nav_button("Synced Users", self.users_tab_index)
         self.status_nav_button = self._create_nav_button("System Status", self.status_tab_index)
+        self.history_nav_button = self._create_nav_button("Attendance History", self.history_tab_index)
         self.sync_nav_button = self._create_nav_button("Data Sources", self.sync_tab_index)
 
         for button in (
             self.camera_nav_button,
             self.users_nav_button,
             self.status_nav_button,
+            self.history_nav_button,
             self.sync_nav_button,
         ):
             layout.addWidget(button)
@@ -314,9 +320,13 @@ class MainWindow(QMainWindow):
         self.sync_button.setObjectName("accentButton")
         self.export_button = QPushButton("Export Attendance")
         self.export_button.setObjectName("secondaryButton")
+        self.manual_entry_button = QPushButton("Mark Present")
+        self.manual_entry_button.setObjectName("primaryButton")
+        self.manual_entry_button.setEnabled(False)
         self.delete_local_records_button = QPushButton("Delete Local Records")
         self.delete_local_records_button.setObjectName("dangerButton")
 
+        actions_row.addWidget(self.manual_entry_button)
         actions_row.addWidget(self.sync_button)
         actions_row.addWidget(self.export_button)
         actions_row.addWidget(self.delete_local_records_button)
@@ -327,14 +337,14 @@ class MainWindow(QMainWindow):
 
         self.synced_count_tile, self.synced_count_value = self._create_stat_tile("Synced Rows", "0")
         self.present_count_tile, self.present_count_value = self._create_stat_tile("Present Today", "0")
-        self.columns_count_tile, self.columns_count_value = self._create_stat_tile("Sheet Columns", "0")
-        self.source_state_tile, self.source_state_value = self._create_stat_tile("Activity", "Idle")
+        self.absent_count_tile, self.absent_count_value = self._create_stat_tile("Absent Today", "0")
+        self.attendance_rate_tile, self.attendance_rate_value = self._create_stat_tile("Attendance Rate", "0%")
 
         for widget in (
             self.synced_count_tile,
             self.present_count_tile,
-            self.columns_count_tile,
-            self.source_state_tile,
+            self.absent_count_tile,
+            self.attendance_rate_tile,
         ):
             stats_row.addWidget(widget, 1)
 
@@ -370,6 +380,37 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._create_field("Status Snapshot", self.status_label))
         layout.addWidget(self._create_field("Recent Activity", self.status_message_label))
         layout.addStretch()
+        return page
+
+    def _build_history_tab(self) -> QWidget:
+        page = self._create_card("Attendance History", "Today's Scanned Records")
+        layout = page.layout()
+        assert isinstance(layout, QVBoxLayout)
+        layout.setSpacing(12)
+
+        controls_row = QHBoxLayout()
+        controls_row.setSpacing(10)
+        
+        refresh_button = QPushButton("Refresh")
+        refresh_button.setObjectName("secondaryButton")
+        refresh_button.clicked.connect(self.refresh_history_table)
+        
+        controls_row.addWidget(QLabel("Today's Attendance Logs"))
+        controls_row.addStretch()
+        controls_row.addWidget(refresh_button)
+
+        self.history_table = QTableWidget(0, 4)
+        self.history_table.setObjectName("userTable")
+        self.history_table.setHorizontalHeaderLabels(["Time Scanned", "User ID", "Name", "Course"])
+        self.history_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.history_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.history_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.history_table.verticalHeader().setVisible(False)
+        self.history_table.horizontalHeader().setStretchLastSection(True)
+        self.history_table.setAlternatingRowColors(True)
+
+        layout.addLayout(controls_row)
+        layout.addWidget(self.history_table, 1)
         return page
 
     def _build_sync_tab(self) -> QWidget:
@@ -787,6 +828,7 @@ class MainWindow(QMainWindow):
         self.user_table.setRowCount(len(users))
 
         present_count = 0
+        absent_count = 0
         for row_index, user in enumerate(users):
             attendance_item = QTableWidgetItem()
             last_scanned_item = QTableWidgetItem(str(user["last_scanned"]))
@@ -815,14 +857,19 @@ class MainWindow(QMainWindow):
                 present_count += 1
             else:
                 attendance_item.setForeground(Qt.darkRed)
+                absent_count += 1
 
             self.user_table.setItem(row_index, self.attendance_column_index, attendance_item)
             self.user_table.setItem(row_index, self.last_scanned_column_index, last_scanned_item)
 
         self._updating_user_table = False
-        self.synced_count_value.setText(str(len(users)))
+        total_users = len(users)
+        attendance_rate = (present_count / total_users * 100) if total_users > 0 else 0
+        
+        self.synced_count_value.setText(str(total_users))
         self.present_count_value.setText(str(present_count))
-        self.columns_count_value.setText(str(len(self.sheet_headers)))
+        self.absent_count_value.setText(str(absent_count))
+        self.attendance_rate_value.setText(f"{attendance_rate:.1f}%")
 
     def start_scan(self) -> None:
         if self.scanner_thread and self.scanner_thread.isRunning():
@@ -997,12 +1044,22 @@ class MainWindow(QMainWindow):
             self._set_sidebar_index(self.camera_tab_index)
             return
 
+        # Check for duplicate scan today
+        if self.database.has_user_scanned_today(user["id"]):
+            self.user_info_label.setText(f"Already Scanned\n{user.get('name', 'User')}")
+            self._set_status_message(f"User {user.get('name', 'Unknown')} already scanned today.")
+            winsound.Beep(600, 200)  # Different tone for duplicate
+            self._show_styled_warning("Already Scanned", f"{user.get('name', 'User')} already marked present today.\n\nIf this is a correction, use the Synced Users tab.", "#FFAA00")
+            self._set_sidebar_index(self.camera_tab_index)
+            return
+
         scanned_at = self.database.record_attendance(user["id"])
         self.user_info_label.setText(self._format_user_info(user, scanned_at))
         self._set_status_message("Attendance recorded successfully in the offline database.")
         winsound.Beep(1000, 300)  # Success beep
         self._show_styled_info("Attendance Recorded!", f"Success! Marked {user.get('name', 'User')} present at {scanned_at}.", "#00AA00")
         self.refresh_user_table()
+        self.refresh_history_table()
         self._set_sidebar_index(self.camera_tab_index)
 
     @Slot(str)
@@ -1101,8 +1158,6 @@ class MainWindow(QMainWindow):
 
     def _set_status_message(self, message: str) -> None:
         self.status_message_label.setText(message)
-        short_message = message[:42] + ("..." if len(message) > 42 else "")
-        self.source_state_value.setText(short_message or "Idle")
 
     def _show_styled_info(self, title: str, message: str, text_color: str = "#00FF00") -> None:
         """Show a styled info message box with custom text color.
@@ -1160,6 +1215,7 @@ class MainWindow(QMainWindow):
             self.camera_nav_button,
             self.users_nav_button,
             self.status_nav_button,
+            self.history_nav_button,
             self.sync_nav_button,
         )
         for button_index, button in enumerate(buttons):
@@ -1233,6 +1289,57 @@ class MainWindow(QMainWindow):
     @Slot()
     def _clear_scanner_reference(self) -> None:
         self.scanner_thread = None
+
+    def _update_manual_entry_button(self) -> None:
+        """Enable/disable the manual entry button based on table selection."""
+        selected_rows = self.user_table.selectionModel().selectedRows()
+        self.manual_entry_button.setEnabled(len(selected_rows) > 0)
+
+    @Slot()
+    def _handle_manual_entry(self) -> None:
+        """Manually mark the selected user as present."""
+        selected_rows = self.user_table.selectionModel().selectedRows()
+        if not selected_rows:
+            self._show_styled_warning("No Selection", "Please select a user from the table.")
+            return
+        
+        row = selected_rows[0].row()
+        attendance_item = self.user_table.item(row, self.attendance_column_index)
+        if not attendance_item:
+            return
+        
+        user_id = attendance_item.data(Qt.UserRole)
+        user = self.database.get_user(user_id)
+        if not user:
+            self._show_styled_warning("User Not Found", "The selected user could not be found.")
+            return
+        
+        scanned_at = self.database.record_attendance(user["id"])
+        self._set_status_message(f"Manually recorded attendance for {user.get('name', 'Unknown')} at {scanned_at}.")
+        self._show_styled_info("Attendance Recorded", f"Manually marked {user.get('name', 'User')} present at {scanned_at}.")
+        self.refresh_user_table()
+        self.refresh_history_table()
+
+    @Slot()
+    def refresh_history_table(self) -> None:
+        """Refresh the attendance history table with today's logs."""
+        if not hasattr(self, "history_table"):
+            return
+        
+        self.history_table.setRowCount(0)
+        logs = self.database.get_attendance_logs()
+        
+        self.history_table.setRowCount(len(logs))
+        for row_index, log in enumerate(logs):
+            time_item = QTableWidgetItem(str(log["time_scanned"]))
+            id_item = QTableWidgetItem(str(log["id"]))
+            name_item = QTableWidgetItem(str(log["name"]))
+            course_item = QTableWidgetItem(str(log["course"]))
+            
+            self.history_table.setItem(row_index, 0, time_item)
+            self.history_table.setItem(row_index, 1, id_item)
+            self.history_table.setItem(row_index, 2, name_item)
+            self.history_table.setItem(row_index, 3, course_item)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

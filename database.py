@@ -319,6 +319,78 @@ class DatabaseManager:
     def set_id_header(self, value: str) -> None:
         self.set_setting("id_header", value)
 
+    def get_attendance_logs(
+        self,
+        attendance_date: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, str]]:
+        """Get attendance logs for a specific date, sorted by time (newest first)."""
+        scan_date = attendance_date or datetime.now().strftime("%Y-%m-%d")
+        with self.connect() as connection:
+            query = """
+                SELECT
+                    attendance.id,
+                    attendance.time_scanned,
+                    users.name,
+                    users.course,
+                    users.raw_data
+                FROM attendance
+                LEFT JOIN users ON attendance.id = users.id
+                WHERE substr(attendance.time_scanned, 1, 10) = ?
+                ORDER BY attendance.time_scanned DESC
+            """
+            if limit:
+                query += f" LIMIT {limit}"
+            
+            rows = connection.execute(query, (scan_date,)).fetchall()
+        
+        return [
+            {
+                "id": row["id"],
+                "name": row["name"] or "Unknown User",
+                "time_scanned": row["time_scanned"],
+                "course": row["course"] or "",
+                "raw_data": self._load_raw_data(row["raw_data"]),
+            }
+            for row in rows
+        ]
+
+    def get_attendance_for_user_today(self, user_id: str, attendance_date: str | None = None) -> list[dict[str, str]]:
+        """Get all scans for a specific user on a specific date."""
+        scan_date = attendance_date or datetime.now().strftime("%Y-%m-%d")
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT time_scanned
+                FROM attendance
+                WHERE id = ? AND substr(time_scanned, 1, 10) = ?
+                ORDER BY time_scanned DESC
+                """,
+                (user_id, scan_date),
+            ).fetchall()
+        
+        return [{"time_scanned": row["time_scanned"]} for row in rows]
+
+    def has_user_scanned_today(self, user_id: str, attendance_date: str | None = None) -> bool:
+        """Check if a user has already scanned today."""
+        logs = self.get_attendance_for_user_today(user_id, attendance_date)
+        return len(logs) > 0
+
+    def get_attendance_stats(self, attendance_date: str | None = None) -> dict[str, int | float]:
+        """Get attendance statistics for a specific date."""
+        users = self.get_users("", attendance_date)
+        total_users = len(users)
+        present_users = sum(1 for u in users if u["attendance_status"] == "Present")
+        absent_users = total_users - present_users
+        rate = (present_users / total_users * 100) if total_users > 0 else 0
+        
+        return {
+            "total": total_users,
+            "present": present_users,
+            "absent": absent_users,
+            "rate": round(rate, 1),
+        }
+
     def _load_raw_data(self, raw_value: str | None) -> dict[str, str]:
         if not raw_value:
             return {}
