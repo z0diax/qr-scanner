@@ -1,4 +1,12 @@
-// for attendance export from app
+/**
+ * Allowed characters: letters, numbers, underscore, dash.
+ */
+var ID_PREFIX = "HRA";
+/**
+ * Number of digits for the sequence number. Example:
+ * 3 -> 001, 4 -> 0001, etc.
+ */
+var ID_PAD_LENGTH = 3;
 
 function doPost(e) {
   try {
@@ -197,9 +205,19 @@ function ensureIdFirstColumn_(sheet, headers) {
   return idIndex;
 }
 
+function sanitizePrefix_(value) {
+  return String(value || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+}
+
+
 function generateParticipantId_(sheet, participantIdCol) {
   var year = new Date().getFullYear();
   var lastRow = sheet.getLastRow();
+
+  // Use code-level prefix only (no spreadsheet fallback)
+  var prefix = sanitizePrefix_(typeof ID_PREFIX !== "undefined" ? ID_PREFIX : "");
+
+  var patternStart = String(prefix) + year + "-";
 
   var count = 0;
 
@@ -208,16 +226,21 @@ function generateParticipantId_(sheet, participantIdCol) {
 
     for (var i = 0; i < values.length; i++) {
       var val = values[i][0];
-      if (typeof val === "string" && val.indexOf(year + "-") === 0) {
+      if (typeof val === "string" && String(val).indexOf(patternStart) === 0) {
         count++;
       }
     }
   }
 
   var next = count + 1;
-  var padded = ("000" + next).slice(-3);
 
-  return year + "-" + padded;
+  var padLen = (typeof ID_PAD_LENGTH !== "undefined" && parseInt(ID_PAD_LENGTH, 10) > 0)
+    ? parseInt(ID_PAD_LENGTH, 10)
+    : 3;
+
+  var padded = String(next).padStart(padLen, "0");
+
+  return patternStart + padded;
 }
 
 function findColumnIndex_(headers, possibleNames) {
