@@ -143,57 +143,36 @@ function onFormSubmit(e) {
     var subject = "Your QR Code Registration";
 
     var plainBody =
-      "Hi Iskolar,\n\n" +
-      "Thank you for registering for UP, Katitirok 2026: Grand Alumni Homecoming!\n\n" +
-      "[DATE] Date: June 27, 2026\n" +
-      "[VENUE] Venue: UP Tacloban Grounds\n" +
-      "[TIME] Time: 10:00 AM - 12:00 Midnight\n\n" +
-      "Registration for walk-ins will begin at 9:30 AM.\n\n" +
-      "[TREE] If you opted to buy a tree, please proceed to Registration Booth 2 on the day of the event to settle your payment.\n\n" +
-      "We are excited to celebrate, reconnect, and create new memories with you.\n\n" +
-      "Kita kits, Iskolar!\n\n" +
-      "Warm regards,\n" +
-      "UP Tacloban Grand Alumni Homecoming Team\n\n" +
-      "Your Participant ID: " + participantId + "\n" +
+      "Good Day!,\n\n" +
+      "Your Participant ID: " + participantId + "\n\n" +
+      plainBodyLines.join("\n") + "\n\n" +
       "Your QR code is attached and included in this email.";
 
     var htmlBody =
-      '<!doctype html>' +
-      '<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>' +
-      '<body style="margin:0; padding:0; background:#f4f8f5;">' +
-      '  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f8f5; margin:0; padding:0;">' +
-      '    <tr>' +
-      '      <td align="center" style="padding:12px;">' +
-      '        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:680px; background:#ffffff; border:1px solid #dce8de; border-radius:10px;">' +
-      '          <tr>' +
-      '            <td style="padding:18px; font-family:Arial, sans-serif; color:#2f2f2f; line-height:1.6; font-size:15px;">' +
-      '              <p style="margin:0 0 14px 0; color:#1f3b2d; font-size:16px;">Hi Iskolar,</p>' +
-      '              <p style="margin:0 0 14px 0;">Thank you for registering for UP, Katitirok 2026: Grand Alumni Homecoming!</p>' +
-      '              <p style="margin:0 0 8px 0;">[DATE] <strong>Date:</strong> June 27, 2026</p>' +
-      '              <p style="margin:0 0 8px 0;">[VENUE] <strong>Venue:</strong> UP Tacloban Grounds</p>' +
-      '              <p style="margin:0 0 14px 0;">[TIME] <strong>Time:</strong> 10:00 AM - 12:00 Midnight</p>' +
-      '              <p style="margin:0 0 14px 0;">Registration for walk-ins will begin at 9:30 AM.</p>' +
-      '              <p style="margin:0 0 14px 0;">[TREE] If you opted to buy a tree, please proceed to Registration Booth 2 on the day of the event to settle your payment.</p>' +
-      '              <p style="margin:0 0 14px 0;">We are excited to celebrate, reconnect, and create new memories with you.</p>' +
-      '              <p style="margin:0 0 14px 0;">Kita kits, Iskolar!</p>' +
-      '              <p style="margin:0 0 16px 0;">Warm regards,<br>UP Tacloban Grand Alumni Homecoming Team</p>' +
-      '              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0f7f1; border:1px solid #cfe3d2; border-radius:8px; margin:16px 0;">' +
-      '                <tr><td align="center" style="padding:12px;">' +
-      '                  <p style="margin:0; color:#24543a; font-size:13px; font-family:Arial, sans-serif;">Your Participant ID</p>' +
-      '                  <p style="margin:6px 0 0 0; color:#1f3b2d; font-size:24px; font-weight:700; letter-spacing:1px; word-break:break-word; font-family:Arial, sans-serif;">' + escapeHtml_(participantId) + '</p>' +
-      '                </td></tr>' +
-      '              </table>' +
-      '              <div style="text-align:center; margin:18px 0 6px 0;">' +
-      '                <p style="color:#24543a; font-size:14px; margin:0 0 10px 0;">Your QR Code</p>' +
-      '                <img src="cid:qrcode" alt="QR Code" width="220" style="display:block; margin:0 auto; width:100%; max-width:220px; height:auto; border:2px solid #d9e8db; border-radius:8px; padding:8px; background:#fff; box-sizing:border-box;">' +
-      '              </div>' +
-      '            </td>' +
-      '          </tr>' +
-      '        </table>' +
-      '      </td>' +
-      '    </tr>' +
-      '  </table>' +
-      '</body></html>';
+      '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px;">' +
+      '  <div style="background: white; border-radius: 8px; padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+      '    <h2 style="color: #333; margin-top: 0; text-align: center;">Registration Confirmation</h2>' +
+      '    <hr style="border: none; border-top: 2px solid #667eea; margin: 30px 0;">' +
+      '    <p style="color: #555; font-size: 16px;">Good Day!,</p>' +
+      '    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 25px 0;">' +
+      '      <p style="margin: 0; font-size: 14px; opacity: 0.9;">Your Participant ID</p>' +
+      '      <p style="margin: 10px 0 0 0; font-size: 32px; font-weight: bold; letter-spacing: 2px;">' + escapeHtml_(participantId) + '</p>' +
+      '    </div>' +
+      '    <h3 style="color: #333; margin-top: 30px; margin-bottom: 15px; font-size: 16px;">Registration Details</h3>' +
+      '    <div style="background: #f8f9fa; padding: 20px; border-left: 4px solid #667eea; border-radius: 4px;">' +
+      '      <ul style="list-style: none; padding: 0; margin: 0;">' +
+      htmlBodyLines.join("") +
+      '      </ul>' +
+      '    </div>' +
+      '    <div style="text-align: center; margin: 30px 0;">' +
+      '      <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Your QR Code</p>' +
+      '      <img src="cid:qrcode" style="max-width: 250px; height: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 10px; background: white;">' +
+      '    </div>' +
+      '    <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">' +
+      '      This QR code is your unique identifier. Please keep it safe and secure.' +
+      '    </p>' +
+      '  </div>' +
+      '</div>';
 
     GmailApp.sendEmail(email, subject, plainBody, {
       htmlBody: htmlBody,
